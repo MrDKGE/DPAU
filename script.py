@@ -23,7 +23,7 @@ ENV_VARS = {
     'PLEX_PORT': '32400',
     'PLEX_CONTAINER_NAME': 'plex',
     'FORCE_UPDATE': 'False',
-    'INTERVAL': '86400',
+    'INTERVAL': '360',
 }
 CONFIG = {var: os.getenv(var, default) for var, default in ENV_VARS.items()}
 
