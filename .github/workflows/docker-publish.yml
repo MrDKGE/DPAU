@@ -8,6 +8,7 @@ on:
       - 'Dockerfile'
       - 'script.py'
       - 'requirements.txt'
+      - '.dockerignore'
 
 jobs:
   build:
