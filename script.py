@@ -82,7 +82,7 @@ def restart_plex_container():
         container.restart()
         logging.info('Plex container restarted')
     except docker.errors.NotFound:
-        logging.error(f'Plex container not found, please check the container name: {CONFIG["PLEX_CONTAINER_NAME"]}')
+        logging.error(f'Plex container not found: {CONFIG["PLEX_CONTAINER_NAME"]}')
     except Exception as error:
         logging.error(f'Failed to restart Plex container: {error}')
 
@@ -94,7 +94,7 @@ def check_for_updates(force_update=False):
         logging.info(f'Latest Version: {latest_version}')
         logging.info(f'Current Version: {current_version}')
         if force_update or version.parse(latest_version) > version.parse(current_version):
-            logging.info('Update available or forced. Restarting Plex container...')
+            logging.info(('Forcing update' if force_update else 'New version available') + ', restarting Plex container...')
             restart_plex_container()
         else:
             logging.info('Plex is up to date.')
