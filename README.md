@@ -1,5 +1,12 @@
 # Docker Plex Auto Update (DPAU)
 
+[![GitHub](https://img.shields.io/badge/GitHub-DPAU-blue)](https://github.com/MrDKGE/dpau)
+[![GitHub last commit](https://img.shields.io/github/last-commit/MrDKGE/dpau)](https://github.com/MrDKGE/dpau)
+[![Docker Pulls](https://img.shields.io/docker/pulls/dkge/dpau.svg)](https://hub.docker.com/r/dkge/dpau)
+[![Docker Stars](https://img.shields.io/docker/stars/dkge/dpau.svg)](https://hub.docker.com/r/dkge/dpau)
+[![Docker Image Size (tag)](https://img.shields.io/docker/image-size/dkge/dpau/latest)](https://hub.docker.com/r/dkge/dpau)
+[![Docker Image Version (latest by date)](https://img.shields.io/docker/v/dkge/dpau)](https://hub.docker.com/r/dkge/dpau)
+
 This script simply compares the current version of Plex with the latest version available on the Plex website.  
 If the versions are different, the script will restart the Plex container.   
 Make sure you are using a Plex image that will automatically update to the latest version on startup.  
