@@ -5,16 +5,15 @@ import signal
 import sys
 import time
 import xml.etree.ElementTree as ElementTree
-
 import docker
 import requests
-import schedule
 from packaging import version
+import schedule
 
 # Setup basic logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
-# Constants
+# Constants and Configuration
 ENV_VARS = {
     'PLEX_BRANCH': 'public',
     'PLEX_TOKEN': None,  # Must be provided
@@ -35,37 +34,37 @@ if not CONFIG['PLEX_TOKEN']:
 # Initialize Docker client
 try:
     docker_client = docker.from_env()
-    docker_client.ping()
-except Exception as e:
-    logging.error(f'Failed to access the Docker socket: {e}')
+except docker.errors.DockerException as e:
+    logging.error(f'Failed to initialize Docker client: {e}')
     sys.exit(1)
 
 # Create a session for reuse
 session = requests.Session()
 
 
-def get_latest_plex_version():
-    url = f"https://plex.tv/api/downloads/5.json?channel={CONFIG['PLEX_BRANCH']}&X-Plex-Token={CONFIG['PLEX_TOKEN']}"
+def get_plex_version(url):
     try:
         response = session.get(url)
         response.raise_for_status()
-        data = response.json()
-        return data['computer']['Linux']['version']
+        return response
     except requests.RequestException as error:
-        logging.error(f'Failed to get latest Plex version: {error}')
-        return None
+        logging.error(f'Request failed: {error}')
+        time.sleep(5)
+        return get_plex_version(url)
+
+
+def get_latest_plex_version():
+    url = f"https://plex.tv/api/downloads/5.json?channel={CONFIG['PLEX_BRANCH']}&X-Plex-Token={CONFIG['PLEX_TOKEN']}"
+    response = get_plex_version(url)
+    data = response.json()
+    return data['computer']['Linux']['version']
 
 
 def get_current_plex_version():
     url = f"{CONFIG['PLEX_PROTOCOL']}://{CONFIG['PLEX_IP']}:{CONFIG['PLEX_PORT']}/?X-Plex-Token={CONFIG['PLEX_TOKEN']}"
-    try:
-        response = session.get(url)
-        response.raise_for_status()
-        root = ElementTree.fromstring(response.content)
-        return root.attrib['version']
-    except (requests.RequestException, ElementTree.ParseError) as error:
-        logging.error(f'Failed to get current Plex version: {error}')
-        return None
+    response = get_plex_version(url)
+    root = ElementTree.fromstring(response.content)
+    return root.attrib['version']
 
 
 def sanitize_version(version_string):
@@ -83,21 +82,18 @@ def restart_plex_container():
         logging.info('Plex container restarted')
     except docker.errors.NotFound:
         logging.error(f'Plex container not found: {CONFIG["PLEX_CONTAINER_NAME"]}')
-    except Exception as error:
+    except docker.errors.ContainerError as error:
         logging.error(f'Failed to restart Plex container: {error}')
 
 
 def check_for_updates(force_update=False):
     latest_version = sanitize_version(get_latest_plex_version())
     current_version = sanitize_version(get_current_plex_version())
-    if latest_version and current_version:
-        logging.info(f'Latest Version: {latest_version}')
-        logging.info(f'Current Version: {current_version}')
-        if force_update or version.parse(latest_version) > version.parse(current_version):
-            logging.info(('Forcing update' if force_update else 'New version available') + ', restarting Plex container...')
-            restart_plex_container()
-        else:
-            logging.info('Plex is up to date.')
+    if latest_version and current_version and (force_update or version.parse(latest_version) > version.parse(current_version)):
+        logging.info(('Forcing update' if force_update else 'New version available') + ', restarting Plex container...')
+        restart_plex_container()
+    elif latest_version and current_version:
+        logging.info('Plex is up to date.')
     else:
         logging.error('Failed to compare Plex versions.')
 
@@ -114,25 +110,17 @@ def main():
     force_update = CONFIG['FORCE_UPDATE'].lower() == 'true'
     check_for_updates(force_update=force_update)
 
-    def scheduled_check():
-        check_for_updates(force_update=False)
-
-    if int(CONFIG['INTERVAL']) < 5:
-        logging.error('Interval must be at least 5 minutes, recommended is 360 minutes (6 hours)')
+    interval = int(CONFIG['INTERVAL'])
+    if interval < 5:
+        logging.error('Interval must be at least 5 minutes.')
         sys.exit(1)
 
-    schedule.every(int(CONFIG['INTERVAL'])).minutes.do(scheduled_check)
+    schedule.every(interval).minutes.do(lambda: check_for_updates(force_update=False))
 
     try:
         while True:
-            idle_time = schedule.idle_seconds()
-            if idle_time is not None:
-                next_run = schedule.next_run()
-                logging.info(f'Next update check will be at {next_run.strftime("%Y-%m-%d %H:%M:%S")}')
-                time.sleep(max(0, idle_time))
-            else:
-                break
             schedule.run_pending()
+            time.sleep(60)  # Sleep at least 60 seconds to avoid high CPU usage
     except KeyboardInterrupt:
         logging.info('Script interrupted by user')
     finally:
