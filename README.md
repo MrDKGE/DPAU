@@ -7,67 +7,83 @@
 [![Docker Image Size (tag)](https://img.shields.io/docker/image-size/dkge/dpau/latest)](https://hub.docker.com/r/dkge/dpau)
 [![Docker Image Version (latest by date)](https://img.shields.io/docker/v/dkge/dpau)](https://hub.docker.com/r/dkge/dpau)
 
-This script simply compares the current version of Plex with the latest version available on the Plex website.  
-If the versions are different, the script will restart the Plex container.   
-Make sure you are using a Plex image that will automatically update to the latest version on startup.  
-For example one of these images: [plexinc/pms-docker](https://hub.docker.com/r/plexinc/pms-docker) or [linuxserver/plex](https://hub.docker.com/r/linuxserver/plex).
+Automatically restarts your Plex container when updates are available.
 
-## Important
+**Requirements:**
+- Runs on same host as Plex container
+- Plex image that auto-updates on restart ([plexinc/pms-docker](https://hub.docker.com/r/plexinc/pms-docker) or [linuxserver/plex](https://hub.docker.com/r/linuxserver/plex))
 
-DPAU needs to be run on the same host as the Plex container.
+## Quick Start
 
-## Environment Variables
-
-To get the Plex token, you can follow the instructions [here](https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/).
-
-| Variable            | Description                                   | Default   | Required |
-|:--------------------|:----------------------------------------------|:----------|:---------|
-| PLEX_TOKEN          | The Plex X-Plex-Token                         |           | Yes      |
-| PLEX_BRANCH         | The branch of Plex to use (public / plexpass) | public    | No       |
-| PLEX_PROTOCOL       | The protocol of the Plex host                 | http      | No       |
-| PLEX_IP             | The IP of the Plex host                       | 127.0.0.1 | No       |
-| PLEX_PORT           | The port of the Plex host                     | 32400     | No       |
-| PLEX_CONTAINER_NAME | The name of the Plex container                | plex      | No       |
-| FORCE_UPDATE        | Force an update of Plex (Mostly for testing)  | False     | No       |
-| INTERVAL            | The interval to check for updates in minutes  | 360       | No       |
-
-## Usage
-
-Note: You will have to replace the environment variables with your own values.
-
-#### Docker
-
-Run the following command to start the container:
-
-```
-docker run -e PLEX_IP=192.168.X.X -e PLEX_TOKEN=XXXX -v /var/run/docker.sock:/var/run/docker.sock dkge/dpau:latest
+```bash
+docker run -d \
+  -e PLEX_TOKEN=YOUR_TOKEN \
+  -e PLEX_IP=192.168.1.100 \
+  -v /var/run/docker.sock:/var/run/docker.sock \
+  dkge/dpau:latest
 ```
 
-#### Docker Compose
+**Get your token:** [Finding your X-Plex-Token](https://support.plex.tv/articles/204059436-finding-an-authentication-token-x-plex-token/)
 
-In the example below, DPAU will check for updates every 180 minutes using the plexpass branch.
+## Configuration
+
+| Variable | Description | Default | Required |
+|----------|-------------|---------|----------|
+| `PLEX_TOKEN` | Plex authentication token | - | ✅ |
+| `PLEX_IP` | Plex server IP/hostname | 127.0.0.1 | No |
+| `PLEX_PORT` | Plex server port | 32400 | No |
+| `PLEX_PROTOCOL` | Protocol for Plex API (http/https) | http | No |
+| `PLEX_CONTAINER_NAME` | Plex container name | plex | No |
+| `PLEX_BRANCH` | Update channel (public/plexpass) | public | No |
+| `INTERVAL` | Check interval in minutes | 360 | No |
+| `FORCE_UPDATE` | Force restart regardless of version (true/false) | false | No |
+
+## Docker Compose
 
 ```yaml
-version: '3'
-
 services:
   dpau:
-    container_name: Plex-Auto-Update
+    container_name: plex-auto-update
     image: dkge/dpau:latest
     environment:
-      - PLEX_IP=192.168.XX.XX
-      - PLEX_TOKEN=XXXX
+      - PLEX_TOKEN=YOUR_TOKEN
+      - PLEX_IP=192.168.1.100
       - PLEX_BRANCH=plexpass
       - INTERVAL=180
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-    restart: always
+    restart: unless-stopped
 ```
 
-## Contributing
+## Native Installation (Optional)
 
-Contributions are welcome! If you'd like to improve this project, please open an issue to discuss a proposed change.
+Run directly on host without Docker:
 
-## Tested On
+```bash
+# Install dependencies (Ubuntu/Debian)
+sudo apt install curl jq docker.io
 
-* Plex Media Server 1.40.0.7997-b09370ecd - [plexinc/pms-docker](https://hub.docker.com/r/plexinc/pms-docker)
+# Run script
+chmod +x update-plex.sh
+export PLEX_TOKEN=YOUR_TOKEN PLEX_IP=192.168.1.100
+./update-plex.sh
+```
+
+**Systemd service:** Create `/etc/systemd/system/dpau.service`
+
+```ini
+[Unit]
+Description=Docker Plex Auto Update
+After=docker.service
+
+[Service]
+Environment="PLEX_TOKEN=YOUR_TOKEN"
+Environment="PLEX_IP=192.168.1.100"
+ExecStart=/path/to/update-plex.sh
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Enable: `sudo systemctl enable --now dpau.service`
